@@ -20,10 +20,8 @@ import time
 
 from containerregistry.transport import nested
 
-import httplib2
 import six.moves.http_client
 
-DEFAULT_SOURCE_TRANSPORT_CALLABLE = httplib2.Http
 DEFAULT_MAX_RETRIES = 2
 DEFAULT_BACKOFF_FACTOR = 0.5
 RETRYABLE_EXCEPTION_TYPES = [
@@ -45,10 +43,10 @@ class Factory(object):
 
   def __init__(self):
     self.kwargs = {}
-    self.source_transport_callable = DEFAULT_SOURCE_TRANSPORT_CALLABLE
+    self.source_transport_factory = None
 
-  def WithSourceTransportCallable(self, source_transport_callable):
-    self.source_transport_callable = source_transport_callable
+  def WithSourceTransportFactory(self, source_transport_factory):
+    self.source_transport_factory = source_transport_factory
     return self
 
   def WithMaxRetries(self, max_retries):
@@ -66,7 +64,7 @@ class Factory(object):
   def Build(self):
     """Returns a RetryTransport constructed with the given values.
     """
-    return RetryTransport(self.source_transport_callable(), **self.kwargs)
+    return RetryTransport(self.source_transport_factory.Build(), **self.kwargs)
 
 
 class RetryTransport(nested.NestedTransport):

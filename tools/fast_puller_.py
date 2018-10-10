@@ -33,9 +33,8 @@ from containerregistry.client.v2_2 import v2_compat
 from containerregistry.tools import logging_setup
 from containerregistry.tools import patched
 from containerregistry.transport import retry
+from containerregistry.transport import transport
 from containerregistry.transport import transport_pool
-
-import httplib2
 
 
 parser = argparse.ArgumentParser(
@@ -49,6 +48,9 @@ parser.add_argument(
 
 parser.add_argument(
     '--directory', action='store', help='Where to save the image\'s files.')
+
+parser.add_argument(
+  '--cacert', help='The CA certificate to use.')
 
 _THREADS = 8
 
@@ -65,9 +67,11 @@ def main():
   if not args.name or not args.directory:
     logging.fatal('--name and --directory are required arguments.')
 
-  retry_factory = retry.Factory()
-  retry_factory = retry_factory.WithSourceTransportCallable(httplib2.Http)
-  transport = transport_pool.Http(retry_factory.Build, size=_THREADS)
+  transport_factory = transport.Factory()
+  if args.cacert is not None:
+    transport_factory = transport_factory.WithCaCert(args.cacert)
+  retry_factory = retry.Factory().WithSourceTransportFactory(transport_factory)
+  transports_pool = transport_pool.Http(retry_factory.Build, size=_THREADS)
 
   if '@' in args.name:
     name = docker_name.Digest(args.name)
@@ -94,7 +98,7 @@ def main():
 
   try:
     logging.info('Pulling manifest list from %r ...', name)
-    with image_list.FromRegistry(name, creds, transport) as img_list:
+    with image_list.FromRegistry(name, creds, transports_pool) as img_list:
       if img_list.exists():
         platform = image_list.Platform({
             'architecture': _PROCESSOR_ARCHITECTURE,
@@ -107,13 +111,13 @@ def main():
         # pytype: enable=wrong-arg-types
 
     logging.info('Pulling v2.2 image from %r ...', name)
-    with v2_2_image.FromRegistry(name, creds, transport, accept) as v2_2_img:
+    with v2_2_image.FromRegistry(name, creds, transports_pool, accept) as v2_2_img:
       if v2_2_img.exists():
         save.fast(v2_2_img, args.directory, threads=_THREADS)
         return
 
     logging.info('Pulling v2 image from %r ...', name)
-    with v2_image.FromRegistry(name, creds, transport) as v2_img:
+    with v2_image.FromRegistry(name, creds, transports_pool) as v2_img:
       with v2_compat.V22FromV2(v2_img) as v2_2_img:
         save.fast(v2_2_img, args.directory, threads=_THREADS)
         return

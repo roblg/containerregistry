@@ -23,6 +23,8 @@ setattr(x, 'nested', nested_)
 from containerregistry.transport import retry_
 setattr(x, 'retry', retry_)
 
+from containerregistry.transport import transport_
+setattr(x, 'transport', transport_)
 
 from containerregistry.transport import transport_pool_
 setattr(x, 'transport_pool', transport_pool_)
